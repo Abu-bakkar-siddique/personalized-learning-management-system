@@ -53,9 +53,7 @@ DELIMITER ;
 
 
 -- SAAD COMMITTING TO THE PROJECT FROM HERE ----> 
--- IMPLEMENTING TRIGGER FOR RECOMENDATIONS INSERITION BASED ON ANY UPDATE ON THE PLACEMENT_TEST TABLE
-
-
+-- UPDATING TRIGGER FOR FOR PROVIDING A MORE DETAILED REPORT AND ALSO CHNGING THE LEVEL MARKING RULES
 DELIMITER //
 CREATE TRIGGER `add_student_recommendations`
 AFTER INSERT ON Placement_tests
@@ -67,36 +65,40 @@ BEGIN
     DECLARE highest_score FLOAT(3,3);
     DECLARE v_current_level VARCHAR(15);
     DECLARE report_text TEXT;
+    DECLARE student_name VARCHAR(32);
+    DECLARE total_students INT;
+    DECLARE student_rank INT;
+    DECLARE percentile FLOAT;
 
     -- Calculate average score
-    SELECT AVG(score) INTO average_score  -- CALCULATES THE AVG SCORE IN ALL THE PLACEMENT TESTS TAKEN BY THE 
-    FROM Placement_tests                  -- STUDENT AND THEN ASSIGNS IT TO average_score.
+    SELECT AVG(score) INTO average_score
+    FROM Placement_tests
     WHERE student_id = NEW.student_id;
 
     -- Identify best subject
-    SELECT subject INTO best_subject      -- IDENTIFIES THE BEST SUBJECT BY QUERYING ON THE SUBJECTS TABLE AND SELECTION THE SUBJECT WITH THE HIGHEST SCORE. 
-    FROM Subjects 
+    SELECT subject INTO best_subject
+    FROM Subjects
     WHERE id = (SELECT subject_id 
                 FROM Placement_tests 
                 WHERE student_id = NEW.student_id
                 ORDER BY score DESC LIMIT 1);
 
     -- Determine highest score and proficiency level
-    SELECT MAX(score) INTO highest_score  -- FINDS THE HIGHEST SCORE FROM THE PLACEMENT TESTS TAKEN BY THE STUDENT AND THEN ASSIGNS THE APPROPRIATE PROFIECIENCY LEVEL
+    SELECT MAX(score) INTO highest_score
     FROM Placement_tests 
     WHERE student_id = NEW.student_id;
 
-    IF highest_score >= 90 AND highest_score <= 100 THEN
+    IF highest_score >= 0.85 AND highest_score <= 0.99 THEN
         SET v_current_level = 'Advanced';
-    ELSEIF highest_score >= 65 AND highest_score < 90 THEN
+    ELSEIF highest_score >= 0.50 AND highest_score < 0.85 THEN
         SET v_current_level = 'Intermediate';
-    ELSEIF highest_score < 65 THEN
+    ELSEIF highest_score < 0.50 THEN
         SET v_current_level = 'Beginner';
     END IF;
 
     -- Recommend departments based on subjects
     SELECT GROUP_CONCAT(name SEPARATOR ', ') INTO recommended_departments
-    FROM Departments        -- THIS GETS THE DEPARTMENTS OF THE SUBECTS IN WHICH THE STUDENT SCORED GOOD AND CONCATENATES THEM INTO A STRING/TEXT
+    FROM Departments
     WHERE id IN (
         SELECT DISTINCT department_id
         FROM Courses
@@ -105,16 +107,49 @@ BEGIN
             SELECT subject_id
             FROM Placement_tests
             WHERE student_id = NEW.student_id
-            ORDER BY score DESC LIMIT 3 -- LIMITING IT TO GIVE THE TOP 3 RECOMMENDED DEPARTMENTS
+            ORDER BY score DESC LIMIT 3
         )
     );
 
-    -- Create report text
-    SET report_text = CONCAT(  -- THIS MAKES THE REPORT
-        'Average Score: ', average_score, 
-        ', Best Subject: ', best_subject,
-        ', Recommended Departments: ', recommended_departments
-    );
+    -- Get student name
+    SELECT name INTO student_name 
+    FROM Students 
+    WHERE id = NEW.student_id;
+
+    -- Calculate total students and student's rank
+    SELECT COUNT(*) INTO total_students 
+    FROM Students;
+
+    SELECT COUNT(DISTINCT student_id) + 1 INTO student_rank
+    FROM Placement_tests 
+    WHERE AVG(score) > (SELECT AVG(score) FROM Placement_tests WHERE student_id = NEW.student_id);
+
+    -- Calculate percentile
+    SET percentile = (total_students - student_rank + 1) / total_students * 100;
+
+    -- Create report text with percentile message
+    IF percentile > 50 THEN
+        SET report_text = CONCAT(
+            student_name, ', here is your test report: ',
+            'Your average score is ', average_score, '. ',
+            'Your best subject is ', best_subject, '. ',
+            'Based on your scores, we recommend the following departments: ', recommended_departments, '. ',
+            'You rank ', student_rank, ' out of ', total_students, ' students. ',
+            'Proficiency Level: ', v_current_level, '. ',
+            'Keep up the good work! Your score beats more than ', ROUND(percentile, 2), '% of other students. ',
+            'For improvements, focus on the subjects where you scored lower.'
+        );
+    ELSE
+        SET report_text = CONCAT(
+            student_name, ', here is your test report: ',
+            'Your average score is ', average_score, '. ',
+            'Your best subject is ', best_subject, '. ',
+            'Based on your scores, we recommend the following departments: ', recommended_departments, '. ',
+            'You rank ', student_rank, ' out of ', total_students, ' students. ',
+            'Proficiency Level: ', v_current_level, '. ',
+            'Keep working hard and improving your scores! You have great potential. Focus on the subjects where you scored lower to see better results.'
+        );
+    END IF;
 
     -- Insert into recommendations table
     INSERT INTO Recommendations (student_id, recommended_department_id, report) 
@@ -123,29 +158,10 @@ END//
 DELIMITER ;
 
 
+--#############     COMMIT LOGS     ########################## 
 
+-- Added a trigger 'add_student_recommendations' to automatically generate and insert a detailed report into the 'Recommendations' table after each new placement test.
+-- The report includes the student's average score, best subject, recommended departments, proficiency level, and a percentile message comparing the student's score with others.
+-- If the student's average score is higher than 50% of other students, the report states "Your score beats more than XX% of other students."
+-- If the score is lower than 50%, the report includes a motivational message encouraging the student to keep working hard and improve their scores.
 
--- TODO FOR SAAD
-
--- Create a trigger that would insert into recommendations table
--- understand the below conditional
--- IF highest_score >= 90 AND highest_score <= 100 THEN
-        --     SET v_current_level = 'Advanced';
-        -- ELSEIF highest_score >= 65 AND highest_score < 90 THEN
-        --     SET v_current_level = 'Intermediate';
-        -- ELSEIF highest_score < 65 THEN
-        --     SET v_current_level = 'Beginner';
-        -- END IF;
--- Now in report that is of type text consider the mention the following :
-    -- student's average score (no of subjects/ sum of all score in all subjects)
-    -- student's best subject
-    -- recommended departments(check scores in different subjects) to do this.
-        -- FOR example if the student scored best in subjects "Computer Science", "Matematics", "Engineering Design" ,
-        -- "physics" than recommed departments like physics, computer science, mathematics
-    
--- Lastly remember that this report is a column in recommendations table, and this is a TEXT type, you will need to
--- concatinate TEXT to from a report
--- you have free hand to add anything meaning full you'd like to the report.
-
-
-  

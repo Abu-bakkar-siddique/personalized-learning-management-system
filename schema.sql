@@ -53,7 +53,7 @@
         id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         student_id SMALLINT UNSIGNED NOT NULL,
         subject_id SMALLINT UNSIGNED NOT NULL,
-        score FLOAT(3,3) NOT NULL,
+        score FLOAT(3,3) NOT NULL,      -- i didnt change the schema as it was already in float , we'll have to insert float values in it at the time of insertions
         FOREIGN KEY (student_id) REFERENCES Students(id),
         FOREIGN KEY (subject_id) REFERENCES Subjects(id)
     );
