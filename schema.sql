@@ -121,7 +121,7 @@
     CREATE TABLE Exams (
         id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         subject_id SMALLINT UNSIGNED NOT NULL,
-        exam_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        exam_date DATETIME DEFAULT CURRENT_TIMESTAMP,   
         score FLOAT(3,3) NOT NULL,
         FOREIGN KEY (subject_id) REFERENCES Subjects(id)
     );
